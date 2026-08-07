@@ -1,0 +1,71 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useCart } from "@/lib/cart-context";
+
+const NAV = [
+  { href: "/products?category=powder", label: "Powders" },
+  { href: "/products?category=bar", label: "Bars" },
+  { href: "/blog", label: "Nutrition Notes" },
+];
+
+export default function Header() {
+  const { itemCount, setIsOpen } = useCart();
+  const [query, setQuery] = useState("");
+
+  return (
+    <header className="sticky top-0 z-40 bg-char-950/95 backdrop-blur border-b border-char-700">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-6">
+          <Link href="/" className="font-display text-xl tracking-tightest text-chalk shrink-0">
+            SURGE<span className="text-lime-400">.</span>
+          </Link>
+
+          <nav className="hidden md:flex items-center gap-6 text-sm text-chalk/80">
+            {NAV.map((item) => (
+              <Link key={item.href} href={item.href} className="hover:text-lime-400 transition-colors">
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <form
+            action="/products"
+            className="hidden sm:flex flex-1 max-w-xs items-center gap-2 rounded-full border border-char-700 bg-char-900 px-3 py-1.5"
+          >
+            <svg className="h-4 w-4 text-chalk/40" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+              <circle cx="9" cy="9" r="6" strokeWidth="1.5" />
+              <path d="M14 14L18 18" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <input
+              name="q"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search products"
+              className="bg-transparent text-sm text-chalk placeholder:text-chalk/40 outline-none flex-1"
+            />
+          </form>
+
+          <div className="flex items-center gap-4 shrink-0">
+            <Link href="/account" className="text-sm text-chalk/80 hover:text-lime-400 hidden sm:inline">
+              Account
+            </Link>
+            <button
+              onClick={() => setIsOpen(true)}
+              aria-label={`Open cart, ${itemCount} items`}
+              className="relative flex items-center gap-1 rounded-full bg-lime-400 text-char-950 px-4 py-2 text-sm font-semibold hover:bg-lime-500 transition-colors"
+            >
+              Cart
+              {itemCount > 0 && (
+                <span className="ml-1 rounded-full bg-char-950 text-lime-400 text-xs w-5 h-5 grid place-items-center font-tabular">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

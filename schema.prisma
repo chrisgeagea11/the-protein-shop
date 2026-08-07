@@ -1,0 +1,86 @@
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import products from "../src/data/products.json";
+import blogPosts from "../src/data/blog.json";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log("Seeding products...");
+  for (const p of products as any[]) {
+    await prisma.product.upsert({
+      where: { slug: p.slug },
+      update: {},
+      create: {
+        slug: p.slug,
+        name: p.name,
+        category: p.category,
+        proteinType: p.proteinType,
+        description: p.description,
+        images: p.images,
+        basePrice: p.basePrice,
+        dietaryTags: p.dietaryTags,
+        nutrition: p.nutrition,
+        ingredients: p.ingredients,
+        supplierSku: p.supplierSku,
+        variants: {
+          create: p.variants.map((v: any) => ({
+            flavor: v.flavor,
+            size: v.size,
+            priceDelta: v.priceDelta,
+            sku: v.sku,
+            stock: v.stock,
+          })),
+        },
+      },
+    });
+  }
+
+  console.log("Seeding blog posts...");
+  for (const post of blogPosts as any[]) {
+    await prisma.blogPost.upsert({
+      where: { slug: post.slug },
+      update: {},
+      create: {
+        slug: post.slug,
+        title: post.title,
+        excerpt: post.excerpt,
+        body: post.body,
+        coverImage: post.coverImage,
+        publishedAt: new Date(post.publishedAt),
+      },
+    });
+  }
+
+  console.log("Seeding a discount code...");
+  await prisma.discountCode.upsert({
+    where: { code: "SURGE10" },
+    update: {},
+    create: { code: "SURGE10", percentOff: 10, active: true },
+  });
+
+  console.log("Seeding an admin user (admin@surge.example / changeme123)...");
+  const passwordHash = await bcrypt.hash("changeme123", 10);
+  await prisma.user.upsert({
+    where: { email: "admin@surge.example" },
+    update: {},
+    create: {
+      email: "admin@surge.example",
+      passwordHash,
+      firstName: "Admin",
+      lastName: "User",
+      role: "ADMIN",
+    },
+  });
+
+  console.log("Done.");
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

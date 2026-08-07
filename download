@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role      @default(CUSTOMER)
+  addresses    Address[]
+  orders       Order[]
+  wishlist     Wishlist[]
+  reviews      Review[]
+  createdAt    DateTime  @default(now())
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  user       User    @relation(fields: [userId], references: [id])
+  userId     String
+  label      String
+  line1      String
+  line2      String?
+  city       String
+  region     String
+  postalCode String
+  country    String
+  isDefault  Boolean @default(false)
+}
+
+model Product {
+  id           String        @id @default(cuid())
+  slug         String        @unique
+  name         String
+  category     String // "powder" | "bar"
+  proteinType  String // "whey" | "casein" | "plant" | "collagen"
+  description  String
+  images       String[]
+  basePrice    Decimal       @db.Decimal(10, 2)
+  dietaryTags  String[] // ["vegan","gluten-free","dairy-free","no-sugar-added"]
+  nutrition    Json // { servingSize, calories, protein, carbs, fat, sugar, ... }
+  ingredients  String
+  supplierSku  String // ID used to auto-forward orders to the dropship supplier
+  active       Boolean       @default(true)
+  variants     Variant[]
+  reviews      Review[]
+  wishlistedBy Wishlist[]
+  createdAt    DateTime      @default(now())
+}
+
+model Variant {
+  id         String      @id @default(cuid())
+  product    Product     @relation(fields: [productId], references: [id])
+  productId  String
+  flavor     String
+  size       String // e.g. "2 lb", "5 lb", "Box of 12"
+  priceDelta Decimal     @db.Decimal(10, 2) @default(0)
+  sku        String      @unique
+  stock      Int         @default(0)
+  orderItems OrderItem[]
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  rating    Int // 1-5
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model Wishlist {
+  id        String  @id @default(cuid())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@unique([userId, productId])
+}
+
+model DiscountCode {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  percentOff   Int?
+  amountOffCts Int?
+  active       Boolean  @default(true)
+  expiresAt    DateTime?
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  user            User?       @relation(fields: [userId], references: [id])
+  userId          String?
+  email           String
+  status          OrderStatus @default(PENDING)
+  items           OrderItem[]
+  subtotalCts     Int
+  discountCts     Int         @default(0)
+  taxCts          Int
+  shippingCts     Int
+  totalCts        Int
+  shippingAddress Json
+  stripeSessionId String?
+  supplierOrderId String? // ID returned by the dropship supplier once forwarded
+  trackingNumber  String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FORWARDED_TO_SUPPLIER
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  variant   Variant @relation(fields: [variantId], references: [id])
+  variantId String
+  quantity  Int
+  priceCts  Int // price at time of purchase
+}
+
+model BlogPost {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  excerpt   String
+  body      String
+  coverImage String
+  publishedAt DateTime @default(now())
+}
