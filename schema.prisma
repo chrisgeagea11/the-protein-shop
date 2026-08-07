@@ -1,86 +1,154 @@
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
-import products from "../src/data/products.json";
-import blogPosts from "../src/data/blog.json";
-
-const prisma = new PrismaClient();
-
-async function main() {
-  console.log("Seeding products...");
-  for (const p of products as any[]) {
-    await prisma.product.upsert({
-      where: { slug: p.slug },
-      update: {},
-      create: {
-        slug: p.slug,
-        name: p.name,
-        category: p.category,
-        proteinType: p.proteinType,
-        description: p.description,
-        images: p.images,
-        basePrice: p.basePrice,
-        dietaryTags: p.dietaryTags,
-        nutrition: p.nutrition,
-        ingredients: p.ingredients,
-        supplierSku: p.supplierSku,
-        variants: {
-          create: p.variants.map((v: any) => ({
-            flavor: v.flavor,
-            size: v.size,
-            priceDelta: v.priceDelta,
-            sku: v.sku,
-            stock: v.stock,
-          })),
-        },
-      },
-    });
-  }
-
-  console.log("Seeding blog posts...");
-  for (const post of blogPosts as any[]) {
-    await prisma.blogPost.upsert({
-      where: { slug: post.slug },
-      update: {},
-      create: {
-        slug: post.slug,
-        title: post.title,
-        excerpt: post.excerpt,
-        body: post.body,
-        coverImage: post.coverImage,
-        publishedAt: new Date(post.publishedAt),
-      },
-    });
-  }
-
-  console.log("Seeding a discount code...");
-  await prisma.discountCode.upsert({
-    where: { code: "SURGE10" },
-    update: {},
-    create: { code: "SURGE10", percentOff: 10, active: true },
-  });
-
-  console.log("Seeding an admin user (admin@surge.example / changeme123)...");
-  const passwordHash = await bcrypt.hash("changeme123", 10);
-  await prisma.user.upsert({
-    where: { email: "admin@surge.example" },
-    update: {},
-    create: {
-      email: "admin@surge.example",
-      passwordHash,
-      firstName: "Admin",
-      lastName: "User",
-      role: "ADMIN",
-    },
-  });
-
-  console.log("Done.");
+generator client {
+  provider = "prisma-client-js"
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role      @default(CUSTOMER)
+  addresses    Address[]
+  orders       Order[]
+  wishlist     Wishlist[]
+  reviews      Review[]
+  createdAt    DateTime  @default(now())
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+model Address {
+  id         String  @id @default(cuid())
+  user       User    @relation(fields: [userId], references: [id])
+  userId     String
+  label      String
+  line1      String
+  line2      String?
+  city       String
+  region     String
+  postalCode String
+  country    String
+  isDefault  Boolean @default(false)
+}
+
+model Product {
+  id           String        @id @default(cuid())
+  slug         String        @unique
+  name         String
+  category     String
+  proteinType  String
+  description  String
+  images       String[]
+  basePrice    Decimal       @db.Decimal(10, 2)
+  dietaryTags  String[]
+  nutrition    Json
+  ingredients  String
+  supplierSku  String
+  active       Boolean       @default(true)
+  variants     Variant[]
+  reviews      Review[]
+  wishlistedBy Wishlist[]
+  createdAt    DateTime      @default(now())
+}
+
+model Variant {
+  id         String      @id @default(cuid())
+  product    Product     @relation(fields: [productId], references: [id])
+  productId  String
+  flavor     String
+  size       String
+  priceDelta Decimal     @db.Decimal(10, 2) @default(0)
+  sku        String      @unique
+  stock      Int         @default(0)
+  orderItems OrderItem[]
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  rating    Int
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model Wishlist {
+  id        String  @id @default(cuid())
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+
+  @@unique([userId, productId])
+}
+
+model DiscountCode {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  percentOff   Int?
+  amountOffCts Int?
+  active       Boolean  @default(true)
+  expiresAt    DateTime?
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  user            User?       @relation(fields: [userId], references: [id])
+  userId          String?
+  email           String
+  status          OrderStatus @default(PENDING)
+  items           OrderItem[]
+  subtotalCts     Int
+  discountCts     Int         @default(0)
+  taxCts          Int
+  shippingCts     Int
+  totalCts        Int
+  shippingAddress Json
+  stripeSessionId String?
+  supplierOrderId String?
+  trackingNumber  String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FORWARDED_TO_SUPPLIER
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  variant   Variant @relation(fields: [variantId], references: [id])
+  variantId String
+  quantity  Int
+  priceCts  Int
+}
+
+model BlogPost {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  excerpt   String
+  body      String
+  coverImage String
+  publishedAt DateTime @default(now())
+}
